@@ -1,0 +1,77 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "C:\\Users\\HACKER\\Documents\\IIT N 2\\packages\\blockchain\\contracts\\KindoraCommitmentLedger.sol": {
+      "lastModificationDate": 1792970982445,
+      "contentHash": "436bb56a9bea749c4685d84c72e6ce74",
+      "sourceName": "contracts/KindoraCommitmentLedger.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "KindoraCommitmentLedger"
+      ]
+    },
+    "C:\\Users\\HACKER\\Documents\\IIT N 2\\packages\\blockchain\\contracts\\TraceTrustEscrow.sol": {
+      "lastModificationDate": 1792950915376,
+      "contentHash": "997aa542976247f2b2258ab840fe10f9",
+      "sourceName": "contracts/TraceTrustEscrow.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "TraceTrustEscrow"
+      ]
+    }
+  }
+}

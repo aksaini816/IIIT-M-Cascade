@@ -1,0 +1,570 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountStatus {
+  ACTIVE
+  LOCKED
+  DISABLED
+}
+
+enum PlatformRole {
+  DONOR
+  AUDITOR
+  PLATFORM_ADMIN
+}
+
+enum OrgType {
+  NGO
+  SCHOOL
+}
+
+enum OrgVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+  EXPIRED
+}
+
+enum OrgRole {
+  ORG_STAFF
+  APPROVER_A
+  APPROVER_B
+  AUDITOR
+}
+
+enum PurposeCategory {
+  SCHOOL_FEES
+  BOOKS
+  UNIFORMS
+  STATIONERY
+  EDUCATION_SUPPLIES
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum DonationStatus {
+  CREATED
+  PENDING
+  CONFIRMED
+  FAILED
+  REFUNDED
+  DISPUTED
+}
+
+enum PaymentProvider {
+  DODO
+  RAZORPAY
+  SANDBOX
+}
+
+enum AllocationStatus {
+  ACTIVE
+  FROZEN
+  EXHAUSTED
+}
+
+enum VendorVerificationStatus {
+  PENDING
+  VERIFIED
+  EXPIRED
+  SUSPENDED
+}
+
+enum ExpenseStatus {
+  DRAFT
+  SUBMITTED
+  PENDING_APPROVALS
+  APPROVED
+  EVIDENCE_REVIEW
+  PAYOUT_PENDING
+  PAID
+  REJECTED
+  FROZEN
+  PAYOUT_FAILED
+  CANCELLED
+}
+
+enum ApprovalSlot {
+  APPROVER_A
+  APPROVER_B
+}
+
+enum ApprovalDecision {
+  APPROVED
+  REJECTED
+}
+
+enum EvidenceVerificationStatus {
+  PENDING
+  VERIFIED
+  FLAGGED
+  REJECTED
+}
+
+enum PayoutProvider {
+  SIMULATION
+  RAZORPAY
+  DODO
+}
+
+enum PayoutStatus {
+  PENDING
+  SUBMITTED
+  PROCESSING
+  PAID
+  FAILED
+  REVERSED
+  AMBIGUOUS_RECONCILIATION_REQUIRED
+}
+
+enum WebhookStatus {
+  RECEIVED
+  PROCESSED
+  IGNORED_DUPLICATE
+  FAILED
+}
+
+enum FraudSeverity {
+  LOW_INDICATOR
+  MEDIUM_SUSPICIOUS
+  HIGH_SUSPICIOUS
+  CRITICAL_CONFIRMED_BLOCKING
+}
+
+enum FraudCaseStatus {
+  OPEN
+  UNDER_REVIEW
+  CONFIRMED_FRAUD
+  FALSE_POSITIVE_RESOLVED
+}
+
+enum BlockchainEnvironment {
+  LOCAL_EVM
+  SIMULATED_CROSS_CHAIN
+}
+
+enum ImpactReviewStatus {
+  DRAFT
+  PENDING_REVIEW
+  VERIFIED_PUBLISHED
+  REJECTED
+}
+
+model User {
+  id                  String          @id @default(uuid()) @db.Uuid
+  email               String          @unique
+  passwordHash        String
+  displayName         String
+  accountStatus       AccountStatus   @default(ACTIVE)
+  platformRole        PlatformRole
+  failedLoginAttempts Int             @default(0)
+  lockedUntil         DateTime?
+  isSyntheticDemo     Boolean         @default(false)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  sessions             Session[]
+  donations            Donation[]      @relation("DonorDonations")
+  memberships          OrganizationMembership[]
+  reviewedOrganizations Organization[]  @relation("OrganizationReviewer")
+  frozenAllocations    Allocation[]     @relation("AllocationFreezer")
+  requestedExpenses    ExpenseRequest[] @relation("ExpenseRequester")
+  approvals            Approval[]
+  uploadedEvidence     EvidenceFile[]  @relation("EvidenceUploader")
+  verifiedEvidence     EvidenceFile[]  @relation("EvidenceVerifier")
+  reviewedFraudCases   FraudCase[]     @relation("FraudReviewer")
+  reviewedImpactReports ImpactReport[]  @relation("ImpactReportReviewer")
+  auditEvents          AuditEvent[]
+
+  @@index([accountStatus])
+  @@index([platformRole])
+}
+
+model Session {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  tokenHash  String   @unique
+  csrfToken  String
+  ipAddress  String
+  userAgent  String
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Organization {
+  id                     String                 @id @default(uuid()) @db.Uuid
+  legalName              String
+  displayName            String
+  type                   OrgType
+  verificationStatus     OrgVerificationStatus @default(PENDING)
+  registrationNumber     String?
+  panOrDarpanRef         String?
+  privateDocRefsJson     Json?
+  reviewNotes            String?
+  reviewerId             String?                @db.Uuid
+  reviewedAt             DateTime?
+  verificationExpiresAt  DateTime?
+  isSyntheticDemo        Boolean                @default(false)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  reviewer       User?                    @relation("OrganizationReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  memberships    OrganizationMembership[]
+  campaigns      Campaign[]
+  allocations    Allocation[]
+  vendors        Vendor[]
+  expenseRequests ExpenseRequest[]
+  fraudCases     FraudCase[]
+  impactReports  ImpactReport[]
+
+  @@index([verificationStatus])
+  @@index([type])
+  @@index([reviewerId])
+}
+
+model OrganizationMembership {
+  id             String       @id @default(uuid()) @db.Uuid
+  userId         String       @db.Uuid
+  organizationId String       @db.Uuid
+  role           OrgRole
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId, role])
+  @@index([organizationId])
+  @@index([userId, isActive])
+}
+
+model Campaign {
+  id                   String          @id @default(uuid()) @db.Uuid
+  organizationId       String          @db.Uuid
+  slug                 String          @unique
+  title                String
+  description          String
+  purposeCategory      PurposeCategory
+  targetAmountPaise    Int
+  confirmedRaisedPaise Int             @default(0)
+  status               CampaignStatus  @default(DRAFT)
+  isPublic             Boolean         @default(false)
+  isSyntheticDemo      Boolean         @default(false)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  donations   Donation[]
+  allocations Allocation[]
+  impactReports ImpactReport[]
+
+  @@index([organizationId, status])
+  @@index([purposeCategory])
+}
+
+model Donation {
+  id                String          @id @default(uuid()) @db.Uuid
+  correlationId      String
+  donorUserId       String?         @db.Uuid
+  donorDisplayName   String?
+  isAnonymous       Boolean         @default(false)
+  campaignId        String          @db.Uuid
+  amountPaise       Int
+  currency          String          @default("INR")
+  paymentProvider   PaymentProvider
+  providerOrderId   String?         @unique
+  providerPaymentId String?
+  idempotencyKey    String          @unique
+  status            DonationStatus  @default(CREATED)
+  isTestMode        Boolean         @default(true)
+  verifiedAt        DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  donor    User?    @relation("DonorDonations", fields: [donorUserId], references: [id], onDelete: SetNull)
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+
+  @@index([correlationId])
+  @@index([campaignId, status])
+  @@index([donorUserId])
+  @@index([providerPaymentId])
+}
+
+model Allocation {
+  id                String           @id @default(uuid()) @db.Uuid
+  correlationId     String
+  campaignId        String           @db.Uuid
+  organizationId    String           @db.Uuid
+  purpose           PurposeCategory
+  approvedBudgetPaise Int
+  reservedPaise     Int              @default(0)
+  disbursedPaise    Int              @default(0)
+  version           Int              @default(1)
+  status            AllocationStatus @default(ACTIVE)
+  freezeReason      String?
+  frozenByUserId    String?          @db.Uuid
+  frozenAt          DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  campaign       Campaign        @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  frozenBy       User?          @relation("AllocationFreezer", fields: [frozenByUserId], references: [id], onDelete: SetNull)
+  expenseRequests ExpenseRequest[]
+
+  @@index([correlationId])
+  @@index([campaignId, status])
+  @@index([organizationId, status])
+  @@index([frozenByUserId])
+  @@unique([campaignId, organizationId, purpose])
+}
+
+model Vendor {
+  id                    String                   @id @default(uuid()) @db.Uuid
+  organizationId        String                   @db.Uuid
+  legalName             String
+  gstinOrPan            String
+  verificationStatus    VendorVerificationStatus @default(PENDING)
+  verificationExpiresAt DateTime?
+  encryptedPayoutDestRef String
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  expenseRequests ExpenseRequest[]
+
+  @@index([organizationId, verificationStatus])
+  @@index([gstinOrPan])
+}
+
+model ExpenseRequest {
+  id              String        @id @default(uuid()) @db.Uuid
+  correlationId   String
+  organizationId  String        @db.Uuid
+  allocationId    String        @db.Uuid
+  requesterId     String        @db.Uuid
+  vendorId        String        @db.Uuid
+  amountPaise     Int
+  purpose         PurposeCategory
+  description     String
+  invoiceReference String
+  version         Int           @default(1)
+  status          ExpenseStatus @default(DRAFT)
+  freezeReason    String?
+  frozenById      String?       @db.Uuid
+  frozenAt        DateTime?
+  isSyntheticDemo Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  allocation   Allocation   @relation(fields: [allocationId], references: [id], onDelete: Restrict)
+  requester    User         @relation("ExpenseRequester", fields: [requesterId], references: [id], onDelete: Restrict)
+  vendor       Vendor       @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  approvals    Approval[]
+  evidenceFiles EvidenceFile[]
+  payouts      Payout[]
+  fraudCases   FraudCase[]
+
+  @@index([correlationId])
+  @@index([organizationId, status])
+  @@index([allocationId, status])
+  @@index([requesterId])
+  @@index([vendorId])
+  @@index([version])
+}
+
+model Approval {
+  id              String           @id @default(uuid()) @db.Uuid
+  expenseRequestId String           @db.Uuid
+  requestVersion  Int
+  approverId      String           @db.Uuid
+  slot            ApprovalSlot
+  decision        ApprovalDecision
+  reason          String?
+  createdAt       DateTime         @default(now())
+
+  expenseRequest ExpenseRequest @relation(fields: [expenseRequestId], references: [id], onDelete: Cascade)
+  approver       User           @relation(fields: [approverId], references: [id], onDelete: Restrict)
+
+  @@unique([expenseRequestId, requestVersion, approverId])
+  @@unique([expenseRequestId, requestVersion, slot])
+  @@index([approverId, decision])
+}
+
+model EvidenceFile {
+  id                String                    @id @default(uuid()) @db.Uuid
+  expenseRequestId  String                    @db.Uuid
+  uploaderId        String                    @db.Uuid
+  originalFilename  String
+  privateObjectKey  String                    @unique
+  sha256Hash        String
+  mimeType          String
+  sizeBytes         Int
+  verificationStatus EvidenceVerificationStatus @default(PENDING)
+  verifiedById      String?                   @db.Uuid
+  verifiedAt        DateTime?
+  createdAt         DateTime                  @default(now())
+
+  expenseRequest ExpenseRequest @relation(fields: [expenseRequestId], references: [id], onDelete: Cascade)
+  uploader       User           @relation("EvidenceUploader", fields: [uploaderId], references: [id], onDelete: Restrict)
+  verifiedBy     User?          @relation("EvidenceVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+
+  @@index([sha256Hash])
+  @@index([expenseRequestId])
+  @@index([uploaderId])
+  @@index([verifiedById])
+}
+
+model Payout {
+  id                String         @id @default(uuid()) @db.Uuid
+  correlationId     String
+  expenseRequestId  String         @db.Uuid
+  approvedVersion   Int
+  amountPaise       Int
+  provider          PayoutProvider
+  providerTransferRef String?
+  idempotencyKey    String         @unique
+  status            PayoutStatus   @default(PENDING)
+  isSimulated       Boolean        @default(true)
+  initiatedAt       DateTime?
+  reconciledAt      DateTime?
+  failureReason     String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  expenseRequest ExpenseRequest @relation(fields: [expenseRequestId], references: [id], onDelete: Restrict)
+
+  @@index([correlationId])
+  @@index([expenseRequestId, status])
+  @@index([providerTransferRef])
+}
+
+model PaymentWebhookEvent {
+  id              String        @id @default(uuid()) @db.Uuid
+  provider        PaymentProvider
+  providerEventId String
+  eventType       String
+  payloadSha256   String
+  status          WebhookStatus @default(RECEIVED)
+  errorMessage    String?
+  receivedAt      DateTime      @default(now())
+  processedAt     DateTime?
+
+  @@unique([provider, providerEventId])
+  @@index([status, receivedAt])
+  @@index([payloadSha256])
+}
+
+model FraudCase {
+  id              String           @id @default(uuid()) @db.Uuid
+  organizationId  String           @db.Uuid
+  expenseRequestId String          @db.Uuid
+  ruleCode        String
+  ruleName        String
+  severity        FraudSeverity
+  isBlocking      Boolean          @default(false)
+  explanation     String
+  status          FraudCaseStatus  @default(OPEN)
+  reviewerId      String?          @db.Uuid
+  resolutionNotes String?
+  resolvedAt      DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  expenseRequest ExpenseRequest @relation(fields: [expenseRequestId], references: [id], onDelete: Cascade)
+  reviewer       User?          @relation("FraudReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([expenseRequestId, isBlocking])
+  @@index([severity, status])
+  @@index([reviewerId])
+}
+
+model AuditEvent {
+  id                 String   @id @default(uuid()) @db.Uuid
+  sequenceNumber     Int      @default(autoincrement())
+  correlationId      String
+  actorUserId        String?  @db.Uuid
+  actorRole          String
+  action             String
+  entityType         String
+  entityId           String
+  redactedMetadataJson Json?
+  previousEventHash  String?
+  currentEventHash   String   @unique
+  anchoredTxHash     String?
+  createdAt          DateTime @default(now())
+
+  actor User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([sequenceNumber])
+  @@index([correlationId, createdAt])
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+  @@index([anchoredTxHash])
+}
+
+model BlockchainEvent {
+  id                    String                @id @default(uuid()) @db.Uuid
+  correlationId         String
+  eventType             String
+  environment           BlockchainEnvironment
+  chainId               Int?
+  contractAddress       String?
+  txHash                String?
+  blockNumber           BigInt?
+  payloadCommitmentHash String
+  metadataJson          Json?
+  createdAt             DateTime              @default(now())
+
+  @@index([correlationId, createdAt])
+  @@index([eventType, environment])
+  @@index([txHash])
+  @@index([payloadCommitmentHash])
+}
+
+model ImpactReport {
+  id                      String             @id @default(uuid()) @db.Uuid
+  organizationId          String             @db.Uuid
+  campaignId              String             @db.Uuid
+  title                   String
+  narrative               String
+  beneficiaryCountAnonymized Int
+  metricsJson             Json
+  evidenceFileIdsJson     Json
+  reviewStatus             ImpactReviewStatus @default(DRAFT)
+  reviewerId              String?            @db.Uuid
+  publishedAt             DateTime?
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  campaign     Campaign     @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  reviewer     User?        @relation("ImpactReportReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, reviewStatus])
+  @@index([campaignId])
+  @@index([reviewerId])
+}

@@ -1,0 +1,1 @@
+{"name":"@kindora/shared","private":true,"version":"0.1.0","type":"module","exports":{".":"./dist/index.js","./money":"./dist/money.js","./enums":"./dist/enums.js","./schemas":"./dist/schemas.js"},"scripts":{"build":"tsc -p tsconfig.json","test":"vitest run"},"dependencies":{"zod":"^3.25.76"},"devDependencies":{"@types/node":"^24.19.2","typescript":"~6.0.3","vitest":"^3.2.4"}}
